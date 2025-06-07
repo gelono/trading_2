@@ -1,8 +1,12 @@
 from datetime import timedelta
 from typing import Dict
 import pandas as pd
-from trading_2.testing.enter_signals import EnterSignal, BaseEnterSignal
-from trading_2.testing.proceed_delay import ProceedDelay, BaseProceedDelay
+from testing.enter_signals import EnterSignal, BaseEnterSignal
+from testing.proceed_delay import ProceedDelay, BaseProceedDelay, TradeSetting, Trade
+
+
+# from trading_2.testing.enter_signals import EnterSignal, BaseEnterSignal
+# from trading_2.testing.proceed_delay import ProceedDelay, BaseProceedDelay
 
 
 class Test:
@@ -31,13 +35,21 @@ class Test:
             kwargs["history"] = history
             is_open_trade = enter_signal.signal(df.loc[start_time], direction, **kwargs)
             if is_open_trade:
-                proceed_delay_obj.proceed_delay(df.loc[start_time], direction, **kwargs)
-
-            start_time += timedelta(hours=4)
+                trade = Trade(df.loc[start_time], direction)
+                start_time += timedelta(hours=4)
+                delay_is_in_process = True
+                while delay_is_in_process and start_time <= trade.end_delay_period:
+                    delay_is_in_process = proceed_delay_obj.proceed_delay(df.loc[start_time], direction, trade, **kwargs)
+                    start_time += timedelta(hours=4)
+                    if not delay_is_in_process:
+                        break
+            else:
+                start_time += timedelta(hours=4)
 
 
 test_data = "/home/oleg/PycharmProjects/Trading/trading_2/processing_data/csv/hourly_with_4h_1d_1w_with_sma.csv"
 test = Test(test_data, "2024-06-05 03:00:00")
 base_enter_signal = BaseEnterSignal(deltas={"prev_4h": 4})
+# trade_settings = TradeSetting()
 base_proceed_delay = BaseProceedDelay()
 test.test(base_enter_signal, base_proceed_delay, "buy")
