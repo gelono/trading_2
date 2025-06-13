@@ -23,5 +23,32 @@ def add_sma_columns_from_csv(csv_path, period=3, shift=3):
     df["close_1d"] = df["close_1d"].ffill()
     df["close_1w"] = df["close_1w"].ffill()
 
+    df = add_impulse_numbers(df)
+
     df.reset_index(inplace=True)
+    return df
+
+
+def add_impulse_numbers(df: pd.DataFrame, sma_col: str = "sma_1d", close_col: str = "close_1d") -> pd.DataFrame:
+    df = df.copy()
+
+    # Инициализация новой колонки
+    df["impulse_id"] = pd.NA
+
+    # Исключаем строки без значений
+    valid_mask = df[sma_col].notna() & df[close_col].notna()
+    df_valid = df[valid_mask].copy()
+
+    # Считаем разницу между ценой и скользящей
+    df_valid["above"] = df_valid[close_col] > df_valid[sma_col]
+
+    # Сдвиг на 1 и сравнение — True, где произошел переход (пересечение)
+    df_valid["crossover"] = df_valid["above"] != df_valid["above"].shift()
+
+    # Начинаем нумерацию: каждое True означает новый импульс
+    df_valid["impulse_id"] = df_valid["crossover"].cumsum().astype("Int64")
+
+    # Объединяем с оригиналом
+    df["impulse_id"] = df_valid["impulse_id"]
+
     return df

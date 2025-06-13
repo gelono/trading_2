@@ -1,9 +1,9 @@
 import pandas as pd
-# from trading_2.processing_data.create_dataset import add_aggregated_ohlcv
-# from trading_2.processing_data.process_dataset import add_sma_columns_from_csv
+from trading_2.processing_data.create_dataset import add_aggregated_ohlcv
+from trading_2.processing_data.process_dataset import add_sma_columns_from_csv
 
-from processing_data.create_dataset import add_aggregated_ohlcv
-from processing_data.process_dataset import add_sma_columns_from_csv
+# from processing_data.create_dataset import add_aggregated_ohlcv
+# from processing_data.process_dataset import add_sma_columns_from_csv
 
 def main():
     df = pd.read_csv('/home/oleg/PycharmProjects/Trading/trading_2/data/history/algo_ohlcv_1h.csv')
