@@ -6,12 +6,13 @@ from trading_2.processing_data.process_dataset import add_sma_columns_from_csv
 # from processing_data.process_dataset import add_sma_columns_from_csv
 
 def main():
-    df = pd.read_csv('/home/oleg/PycharmProjects/Trading/trading_2/data/history/algo_ohlcv_1h.csv')
+    coin = "tao"
+    df = pd.read_csv(f'/home/oleg/PycharmProjects/Trading/trading_2/data/history/{coin}_ohlcv_1h_2years.csv')
     df_result = add_aggregated_ohlcv(df)
-    df_result.to_csv('csv/hourly_with_4h_1d_1w.csv', index=False)
+    df_result.to_csv(f'csv/{coin}_hourly_with_4h_1d_1w_2years.csv', index=False)
 
-    df_with_sma = add_sma_columns_from_csv('csv/hourly_with_4h_1d_1w.csv', period=3, shift=3)
-    df_with_sma.to_csv('csv/hourly_with_4h_1d_1w_with_sma.csv', index=False)
+    df_with_sma = add_sma_columns_from_csv(f'csv/{coin}_hourly_with_4h_1d_1w_2years.csv', period=3, shift=3)
+    df_with_sma.to_csv(f'csv/{coin}_hourly_with_4h_1d_1w_with_sma_2years.csv', index=False)
 
 
 if __name__ == "__main__":

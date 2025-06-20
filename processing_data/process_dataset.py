@@ -1,6 +1,6 @@
 import pandas as pd
 
-def add_sma_columns_from_csv(csv_path, period=3, shift=3):
+def add_sma_columns_from_csv(csv_path, period=3, shift=3, fill=True):
     df = pd.read_csv(csv_path, parse_dates=['timestamp'])
     df.set_index('timestamp', inplace=True)
 
@@ -20,12 +20,24 @@ def add_sma_columns_from_csv(csv_path, period=3, shift=3):
             if sma_col in ["sma_1d", "sma_1w"]:
                 df[sma_col] = df[sma_col].ffill()
 
-    df["close_1d"] = df["close_1d"].ffill()
-    df["close_1w"] = df["close_1w"].ffill()
+    # Добавим колонку дня недели для дневных свечей
+    if 'close_1d' in df.columns:
+        df["weekday_1d"] = df.index.where(df["close_1d"].notna()).weekday
 
     df = add_impulse_numbers(df)
+    df = add_day_id_within_impulse(df)
+
+    if fill:
+        df["close_1d"] = df["close_1d"].ffill()
+        df["close_1w"] = df["close_1w"].ffill()
+        df["high_1w"] = df["high_1w"].ffill()
+        df["low_1w"] = df["low_1w"].ffill()
+        df["impulse_id"] = df["impulse_id"].ffill()
+        df["day_id"] = df["day_id"].ffill()
+        df["weekday_1d"] = df["weekday_1d"].ffill()
 
     df.reset_index(inplace=True)
+
     return df
 
 
@@ -50,5 +62,31 @@ def add_impulse_numbers(df: pd.DataFrame, sma_col: str = "sma_1d", close_col: st
 
     # Объединяем с оригиналом
     df["impulse_id"] = df_valid["impulse_id"]
+
+    return df
+
+
+def add_day_id_within_impulse(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.copy()
+
+    if "impulse_id" not in df.columns:
+        raise ValueError("Колонка 'impulse_id' отсутствует")
+
+    # Заполним новый столбец day_id значением по умолчанию
+    df["day_id"] = pd.NA
+
+    # Обработка каждого импульса отдельно
+    for impulse_id in df["impulse_id"].dropna().unique():
+        mask = df["impulse_id"] == impulse_id
+        impulse_df = df.loc[mask].copy()
+
+        # Только строки, где есть дневной close (или любой другой дневной признак)
+        is_new_day = impulse_df["close_1d"].notna()
+
+        # Присваиваем номер дня только этим строкам
+        day_counter = is_new_day.cumsum()
+
+        # Присваиваем номер дня всем строкам, заполняя вперёд
+        df.loc[mask, "day_id"] = day_counter.where(is_new_day).ffill().astype("Int64")
 
     return df
