@@ -15,7 +15,7 @@ class ProfitByMomentum(ConditionSignal):
 
         return history_close
 
-    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
         pass
 
     def check_exit_condition(self, row: pd.Series, direction: str, trade: Trade, *args, **kwargs) -> bool:
@@ -37,7 +37,7 @@ class ProfitByMomentum(ConditionSignal):
 
 
 class WorkPeriodCrossMAEarly(ConditionSignal):
-    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
         prev_4h = history.get("prev_4h")
         if prev_4h is None:
             raise ValueError("Missing 'prev_4h' in history")
@@ -60,7 +60,7 @@ class WorkPeriodCrossMAEarly(ConditionSignal):
 
 
 class WorkPeriodCrossMALate(ConditionSignal):
-    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
         prev_4h = history.get("prev_4h")
         if prev_4h is None:
             raise ValueError("Missing 'prev_4h' in history")
@@ -81,7 +81,7 @@ class WorkPeriodCrossMALate(ConditionSignal):
 
 
 class WorkPeriodCrossMAWithDelay(ConditionSignal):
-    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
         prev_4h = history.get("prev_4h")
         prev_8h = history.get("prev_8h")
 
@@ -106,7 +106,7 @@ class WorkPeriodCrossMAWithDelay(ConditionSignal):
 
 
 class ImpulsPeriodDirection(ConditionSignal):
-    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
         if direction == "buy":
             return current_row["close_1d"] > current_row["sma_1d"]
         else:
@@ -117,7 +117,7 @@ class ImpulsPeriodDirection(ConditionSignal):
 
 
 class WorkPeriodKnifeFilter(ConditionSignal):
-    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
         if direction == "buy":
             return current_row["low_4h"] >= min([row["low_4h"] for row in list(history.values())[:self.stop_lookback_period-1]])
         else:
@@ -127,8 +127,22 @@ class WorkPeriodKnifeFilter(ConditionSignal):
         pass
 
 
+class LowATRFilter(ConditionSignal):
+    @staticmethod
+    def _get_daily_atr(day_history: dict):
+        atr_lst = [row["high_1d"] - row["low_1d"] for row in day_history.values()]
+        return np.mean(atr_lst)
+
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
+        atr = self._get_daily_atr(day_history)
+        return atr >= current_row["close_4h"] * self.percent_range_from_current_price_to_calc_atr_filter
+
+    def check_exit_condition(self, row: pd.Series, direction: str, trade: Trade, *args, **kwargs) -> bool:
+        pass
+
+
 class StrategicPeriodDirection(ConditionSignal):
-    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
         if direction == "buy":
             return current_row["close_1w"] > current_row["sma_1w"]
         else:
@@ -139,7 +153,7 @@ class StrategicPeriodDirection(ConditionSignal):
 
 
 class StrategicPeriodFilter(ConditionSignal):
-    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
         if direction == "buy":
             return current_row["close_4h"] > current_row["close_1w"]
         else:
@@ -150,7 +164,7 @@ class StrategicPeriodFilter(ConditionSignal):
 
 
 class WorkPeriodCloseReverse(ConditionSignal):
-    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
         prev_4h = history.get("prev_4h")
         prev_8h = history.get("prev_8h")
 
@@ -168,7 +182,7 @@ class WorkPeriodVolumeSignalOrMACrossLate(ConditionSignal):
         self.volume_coefficient = volume_coefficient
         self.work_period_cross_ma_late = WorkPeriodCrossMALate()
 
-    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
         avg_vol = np.mean([row["volume_4h"] for row in history.values()])
 
         if direction == "buy":
@@ -176,13 +190,13 @@ class WorkPeriodVolumeSignalOrMACrossLate(ConditionSignal):
                 current_row["low_4h"] < current_row["sma_4h"] and
                 current_row["volume_4h"] >= avg_vol * self.volume_coefficient and
                 current_row["low_4h"] < history.get("prev_4h")["low_4h"]
-            ) or self.work_period_cross_ma_late.check_condition(current_row, history, direction)
+            ) or self.work_period_cross_ma_late.check_condition(current_row, history, day_history, direction)
         else:
             return (
                 current_row["high_4h"] > current_row["sma_4h"] and
                 current_row["volume_4h"] >= avg_vol * self.volume_coefficient and
                 current_row["high_4h"] > history.get("prev_4h")["high_4h"]
-            ) or self.work_period_cross_ma_late.check_condition(current_row, history, direction)
+            ) or self.work_period_cross_ma_late.check_condition(current_row, history, day_history, direction)
 
     def check_exit_condition(self, row: pd.Series, direction: str, trade: Trade, *args, **kwargs) -> bool:
         pass
@@ -192,7 +206,7 @@ class WorkPeriodVolumeSignal(ConditionSignal):
     def __init__(self, volume_coefficient):
         self.volume_coefficient = volume_coefficient
 
-    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
         avg_vol = np.mean([row["volume_4h"] for row in history.values()])
 
         if direction == "buy":
@@ -216,7 +230,7 @@ class WorkPeriodCrossMAEarlyOrLate(ConditionSignal):
     def __init__(self):
         self.work_period_cross_ma_late = WorkPeriodCrossMALate()
 
-    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
         prev_4h = history.get("prev_4h")
         if prev_4h is None:
             raise ValueError("Missing 'prev_4h' in history")
@@ -226,20 +240,20 @@ class WorkPeriodCrossMAEarlyOrLate(ConditionSignal):
                 current_row["close_4h"] < current_row["sma_4h"] and
                 prev_4h["close_4h"] >= prev_4h["sma_4h"] and
                 current_row["low_4h"] >= (current_row["sma_4h"] * (1 - self.extremum_to_ma_filter))
-            ) or self.work_period_cross_ma_late.check_condition(current_row, history, direction)
+            ) or self.work_period_cross_ma_late.check_condition(current_row, history, day_history, direction)
         else:
             return (
                 current_row["close_4h"] > current_row["sma_4h"] and
                 prev_4h["close_4h"] <= prev_4h["sma_4h"] and
                 current_row["high_4h"] <= (current_row["sma_4h"] * (1 + self.extremum_to_ma_filter))
-            ) or self.work_period_cross_ma_late.check_condition(current_row, history, direction)
+            ) or self.work_period_cross_ma_late.check_condition(current_row, history, day_history, direction)
 
     def check_exit_condition(self, row: pd.Series, direction: str, trade: Trade, *args, **kwargs) -> bool:
         pass
 
 
 class WorkPeriodExtremumToMAFilter(ConditionSignal):
-    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
         if direction == "buy":
             return current_row["low_4h"] >= (current_row["sma_4h"] * (1 - self.extremum_to_ma_filter))
         else:

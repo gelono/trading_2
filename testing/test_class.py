@@ -15,8 +15,8 @@ class Test:
         self.end_time = pd.Timestamp(end_time)
 
     @staticmethod
-    def check(conditions: list[ConditionSignal], current_row: pd.Series, history: dict, direction: str) -> bool:
-        return all(condition.check_condition(current_row, history, direction) for condition in conditions)
+    def check(conditions: list[ConditionSignal], current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
+        return all(condition.check_condition(current_row, history, day_history, direction) for condition in conditions)
 
     def _build_history(self, time: pd.Timestamp, delta_map: dict) -> dict:
         return {
@@ -25,8 +25,8 @@ class Test:
             if (time - delta) in self.df.index
         }
 
-    def _should_open_trade(self, conditions, current_row, history, direction) -> bool:
-        return self.check(conditions, current_row, history, direction)
+    def _should_open_trade(self, conditions, current_row, history, day_history, direction) -> bool:
+        return self.check(conditions, current_row, history, day_history, direction)
 
     def _run_delay_phase(self, start_time, end_time, trade, process_trade_obj, direction, trades_results, **kwargs):
         while start_time <= trade.end_delay_period and start_time <= end_time:
@@ -57,6 +57,7 @@ class Test:
         self,
         enter_conditions: list[ConditionSignal],
         deltas: dict,
+        day_deltas: dict,
         process_trade_obj: BaseProcessTrade,
         direction: str,
         trades_results: TestService,
@@ -68,6 +69,7 @@ class Test:
         **kwargs
     ):
         delta_map = {label: timedelta(hours=hours) for label, hours in deltas.items()}
+        day_delta_map = {label: timedelta(hours=hours) for label, hours in day_deltas.items()}
         start_time = self.start_time
         end_time = self.end_time
 
@@ -76,12 +78,16 @@ class Test:
 
         while start_time <= end_time:
             history = self._build_history(start_time, delta_map)
+            day_history = self._build_history(start_time, day_delta_map)
             if len(history) != len(delta_map):
+                start_time += timedelta(hours=4)
+                continue
+            if len(day_history) != len(day_delta_map):
                 start_time += timedelta(hours=4)
                 continue
 
             current_row = self.df.loc[start_time]
-            if self._should_open_trade(enter_conditions, current_row, history, direction):
+            if self._should_open_trade(enter_conditions, current_row, history, day_history, direction):
                 trade = Trade(current_row, direction, stop_position_rule, profit_position_rule, self.df, history)
 
                 if current_row["impulse_id"] == impulse_id:

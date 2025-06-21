@@ -5,7 +5,7 @@ from trading_2.testing.test_service import TradeSetting, Trade
 
 class ConditionSignal(ABC, TradeSetting):
     @abstractmethod
-    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+    def check_condition(self, current_row: pd.Series, history: dict, day_history: dict, direction: str) -> bool:
         pass
 
     @abstractmethod

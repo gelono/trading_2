@@ -29,9 +29,13 @@ def add_sma_columns_from_csv(csv_path, period=3, shift=3, fill=True):
 
     if fill:
         df["close_1d"] = df["close_1d"].ffill()
+        df["high_1d"] = df["high_1d"].ffill()
+        df["low_1d"] = df["low_1d"].ffill()
+
         df["close_1w"] = df["close_1w"].ffill()
         df["high_1w"] = df["high_1w"].ffill()
         df["low_1w"] = df["low_1w"].ffill()
+
         df["impulse_id"] = df["impulse_id"].ffill()
         df["day_id"] = df["day_id"].ffill()
         df["weekday_1d"] = df["weekday_1d"].ffill()
