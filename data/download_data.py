@@ -34,5 +34,5 @@ def fetch_binance_ohlcv(symbol='BTC/USDT', timeframe='1h', days=10, filename='oh
 
 
 # Пример использования
-coin = "btc"
-#fetch_binance_ohlcv(symbol=f'{coin.upper()}/USDT', timeframe='1h', days=730, filename=f'history/{coin}_ohlcv_1h_2years.csv')
+coin = "algo"
+fetch_binance_ohlcv(symbol=f'{coin.upper()}/USDT', timeframe='1h', days=1460, filename=f'history/{coin}_ohlcv_1h_4years.csv')

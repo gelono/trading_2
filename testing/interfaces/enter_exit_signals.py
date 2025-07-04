@@ -9,5 +9,5 @@ class ConditionSignal(ABC, TradeSetting):
         pass
 
     @abstractmethod
-    def check_exit_condition(self, row: pd.Series, direction: str, trade: Trade, *args, **kwargs) -> bool:
+    def check_exit_condition(self, row: pd.Series, direction: str, trade: Trade, history: dict = None, *args, **kwargs) -> bool:
         pass

@@ -1,4 +1,6 @@
 from datetime import timedelta
+from typing import Dict, Tuple
+
 import numpy as np
 import pandas as pd
 from trading_2.testing.interfaces.enter_exit_signals import ConditionSignal
@@ -247,3 +249,101 @@ class WorkPeriodExtremumToMAFilter(ConditionSignal):
 
     def check_exit_condition(self, row: pd.Series, direction: str, trade: Trade, *args, **kwargs) -> bool:
         pass
+
+
+class WorkPeriodStochasticEnterExit(ConditionSignal):
+    @staticmethod
+    def get_current_stochastic_from_history(
+            history: Dict[str, pd.Series],
+            k_period: int = 12,
+            d_period: int = 3
+    ) -> tuple[float, float]:
+        """
+        Рассчитывает стохастический осциллятор (%K и %D) по history-словарю с Series.
+
+        :param history: словарь вида {label: pd.Series}, где Series содержит high/low/close
+        :param k_period: период для расчета %K
+        :param d_period: период для расчета %D
+        :return: (текущее значение %K, текущее значение %D)
+        """
+        if len(history) < k_period + d_period - 1:
+            raise ValueError(f"Недостаточно данных в history: минимум {k_period + d_period - 1} записей")
+
+        # Упорядочим по времени (по возрастанию часов)
+        sorted_history = sorted(history.items(), key=lambda x: int(x[0].split("_")[1][:-1]))
+        # recent = [item[1] for item in sorted_history][- (k_period + d_period - 1):]
+        recent = [item[1] for item in sorted_history][:k_period + d_period - 1]
+
+        highs = [r["high_4h"] for r in recent]
+        lows = [r["low_4h"] for r in recent]
+        closes = [r["close_4h"] for r in recent]
+
+        # rolling %K
+        percent_k_series = []
+        # for i in range(len(recent) - k_period + 1):
+        i = d_period - 1
+        step = 0
+        while i >= 0:
+            window_highs = highs[i:k_period+d_period-1+step]
+            window_lows = lows[i:k_period+d_period-1+step]
+            window_closes = closes[i:k_period+d_period-1+step]
+            current_close = window_closes[0]
+            i -= 1
+            step -= 1
+
+            highest_high = max(window_highs)
+            lowest_low = min(window_lows)
+            if highest_high == lowest_low:
+                percent_k = 0  # avoid division by zero
+            else:
+                percent_k = 100 * (current_close - lowest_low) / (highest_high - lowest_low)
+
+            percent_k_series.append(percent_k)
+
+        current_k = percent_k_series[-1]
+        current_d = sum(percent_k_series[-d_period:]) / d_period
+
+        return current_k, current_d
+
+    def check_condition(self, current_row: pd.Series, history: dict, direction: str) -> bool:
+        prev_stochastic_k, prev_stochastic_d = self.get_current_stochastic_from_history(
+            history, self.stochastic_k, self.stochastic_d)
+
+        history["prev_0h"] = current_row
+
+        stochastic_k, stochastic_d = self.get_current_stochastic_from_history(
+            history, self.stochastic_k, self.stochastic_d)
+
+        if direction == "buy":
+            return prev_stochastic_k <= prev_stochastic_d and stochastic_k > stochastic_d #and prev_stochastic_k > 50
+        else:
+            return prev_stochastic_k >= prev_stochastic_d and stochastic_k < stochastic_d #and prev_stochastic_k < 50
+
+    def check_exit_condition(self, row: pd.Series, direction: str, trade: Trade, *args, **kwargs) -> bool:
+        deltas_dict = {f"prev_{i}h": i for i in range(4, trade.operational_history_period * 4 + 4, 4)}
+        delta_map = {label: timedelta(hours=hours) for label, hours in deltas_dict.items()}
+        history = {label: trade.df.loc[pd.Timestamp(row.name) - delta] for label, delta in delta_map.items()
+                   if (pd.Timestamp(row.name) - delta) in trade.df.index}
+
+        prev_stochastic_k, prev_stochastic_d = self.get_current_stochastic_from_history(
+            history, self.stochastic_k, self.stochastic_d)
+
+        history["prev_0h"] = row
+
+        stochastic_k, stochastic_d = self.get_current_stochastic_from_history(
+            history, self.stochastic_k, self.stochastic_d)
+
+        if direction == "buy":
+            if prev_stochastic_k >= prev_stochastic_d and stochastic_k < stochastic_d and prev_stochastic_k >= 70:
+                trade.close_by_market_price = row["close_4h"]
+                trade.exit_type = "close_by_market"
+                return True
+            else:
+                return False
+        else:
+            if prev_stochastic_k <= prev_stochastic_d and stochastic_k > stochastic_d and prev_stochastic_k <= 30:
+                trade.close_by_market_price = row["close_4h"]
+                trade.exit_type = "close_by_market"
+                return True
+            else:
+                return False

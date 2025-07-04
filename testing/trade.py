@@ -26,6 +26,7 @@ class Trade(TradeSetting):
         self.close_by_time_price = 0
         self.exit_type = None
         self.weekday_1d = row["weekday_1d"]
+        self.added_position = False
 
     def get_stop_price(self, stop_position_rule: "ClosePositionOrderRule"):
         if not stop_position_rule:

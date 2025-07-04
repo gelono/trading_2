@@ -8,9 +8,9 @@ from trading_2.testing.trade_settings import TradeSetting
 class TestService(TradeSetting):
     total_results: list[dict] = []
 
-    def _calc_percent(self, open_price, close_price, fee, direction: str) -> float:
+    def _calc_percent(self, open_price, close_price, direction: str) -> float:
         delta = close_price - open_price if direction == "buy" else open_price - close_price
-        return (100 * delta / open_price) - fee
+        return 100 * delta / open_price
 
     def calc_trade_result(self, row: pd.Series, direction: str, trade: Trade, *args, **kwargs) -> None:
         fee = trade.maker_fee + trade.taker_fee
@@ -27,12 +27,12 @@ class TestService(TradeSetting):
             print(f"❌ Неизвестный тип выхода: {trade.exit_type}")
             return
 
-        result_percent = self._calc_percent(trade.open_price, exit_price, fee, direction)
+        result_percent = self._calc_percent(trade.open_price, exit_price, direction)
 
         trade_result = {
             "enter_date": trade.enter_date,
             "exit_date": row.name,
-            "result_percent": result_percent,
+            "result_percent": 2 * result_percent - 2 * fee if trade.added_position else result_percent - fee,
             "direction": direction,
             "enter_price": trade.open_price,
             "exit_price": exit_price,
@@ -40,7 +40,8 @@ class TestService(TradeSetting):
             "trade_id": trade.id,
             "day_id": trade.day_id,
             "impulse_id": trade.impulse_id,
-            "weekday_1d": trade.weekday_1d
+            "weekday_1d": trade.weekday_1d,
+            "added_position": trade.added_position
         }
 
         self.add_trade_result(trade_result)
